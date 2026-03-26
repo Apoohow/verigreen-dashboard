@@ -1355,7 +1355,8 @@
   background: #ffffff;
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.22);
   padding: 16px;
-  z-index: 1258;
+  /* 須高於 .tourFocusFloating (1259)，否則第六步教學卡會被 Chat 視窗蓋住 */
+  z-index: 1310;
 }
 .tutorialTop {
   display: flex;

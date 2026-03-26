@@ -1368,9 +1368,9 @@ async def agent_download_and_import(body: dict, background_tasks: BackgroundTask
     code = matched_codes[0]
     company_name = _SOURCE_NAME_BY_CODE.get(code) or query
 
-    desktop_dir = Path(__file__).resolve().parents[3]
-    if str(desktop_dir) not in sys.path:
-        sys.path.insert(0, str(desktop_dir))
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
     try:
         from esg_csr_agent import download_reports as download_mod  # type: ignore
     except Exception as exc:
@@ -1433,9 +1433,9 @@ def _agent_download_and_analyze_job(
     finally:
         db.close()
 
-    desktop_dir = Path(__file__).resolve().parents[3]
-    if str(desktop_dir) not in sys.path:
-        sys.path.insert(0, str(desktop_dir))
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
     try:
         from esg_csr_agent import download_reports as download_mod  # type: ignore
         summary = download_mod.run(

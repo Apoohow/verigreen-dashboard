@@ -979,10 +979,24 @@ export default function App() {
       }
     }
     if (stepDef?.target === 'chat') {
-      // 第六步：chat 視窗保持原位，教學卡固定放在 chat 左側
+      // 第六步：教學卡優先放在對話框左側；空間不足則改置於對話框上方，避免被裁切或與視窗重疊
+      const preferredLeft = tourRect.left - cardW - gap
+      if (preferredLeft >= pad) {
+        return {
+          top: `${clampY(tourRect.top + tourRect.height / 2 - cardH / 2)}px`,
+          left: `${preferredLeft}px`,
+        }
+      }
+      const aboveTop = tourRect.top - cardH - gap
+      if (aboveTop >= pad) {
+        return {
+          top: `${aboveTop}px`,
+          left: `${clampX(Math.min(tourRect.left, vw - cardW - pad))}px`,
+        }
+      }
       return {
-        top: `${clampY(tourRect.top + tourRect.height / 2 - cardH / 2)}px`,
-        left: `${clampX(tourRect.left - cardW - 14)}px`,
+        top: `${pad}px`,
+        left: `${pad}px`,
       }
     }
 
@@ -1168,7 +1182,6 @@ export default function App() {
           <button className={styles.headerTextBtn} onClick={() => setShowBatch(true)} title="Open batch comparison">
             Batch Compare
           </button>
-          <span className={styles.headerMetaText}>API: localhost:8000</span>
           {tejFilename && (
             <span className={styles.headerMetaText}
               title={`TEJ 資料來源：${tejFilename}`}
@@ -1176,7 +1189,6 @@ export default function App() {
               TEJ: {tejFilename.replace('DataExport.xlsx', '').replace('DataExport', '')}
             </span>
           )}
-          <span className={styles.headerMetaText}>Status: {reportStatus}</span>
         </div>
       </header>
 
