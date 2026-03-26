@@ -54,6 +54,10 @@ SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").strip().lowe
 SESSION_COOKIE_NAME = "vg_session"
 OAUTH_STATE_COOKIE_NAME = "vg_oauth_state"
 SESSION_TTL_DAYS = 7
+# 前端與後端不同網域時（例如 Render：兩個 *.onrender.com 子網域），
+# 瀏覽器對後端的 fetch 屬於 cross-site，SameSite=Lax 不會帶上 Cookie → /api/auth/me 永遠 401。
+# HTTPS 生產環境需 SameSite=None; Secure。
+SESSION_COOKIE_SAMESITE: str = "none" if SESSION_COOKIE_SECURE else "lax"
 
 
 def _normalize_origin(url: str) -> str:
@@ -471,7 +475,7 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
         value=session_token,
         max_age=SESSION_TTL_DAYS * 24 * 3600,
         httponly=True,
-        samesite="lax",
+        samesite=SESSION_COOKIE_SAMESITE,
         secure=SESSION_COOKIE_SECURE,
         path="/",
     )
@@ -504,7 +508,12 @@ def auth_logout(request: Request, response: Response):
         finally:
             db.close()
     response = ORJSONResponse({"status": "logged_out"})
-    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        path="/",
+        secure=SESSION_COOKIE_SECURE,
+        samesite=SESSION_COOKIE_SAMESITE,
+    )
     return response
 
 
