@@ -55,6 +55,13 @@ SESSION_COOKIE_NAME = "vg_session"
 OAUTH_STATE_COOKIE_NAME = "vg_oauth_state"
 SESSION_TTL_DAYS = 7
 
+
+def _normalize_origin(url: str) -> str:
+    s = (url or "").strip()
+    if not s:
+        return ""
+    return s.rstrip("/")
+
 # ── 維度正規化（模組層級，各處共用）────────────────────────────────────
 _DIM_NORMALIZE: dict[str, str] = {
     "selective_disclosure": "selective_disclosure",
@@ -242,7 +249,11 @@ def _risk_level_from_score(score: int | float | None) -> str:
 app = FastAPI(title="VeriGreen API", default_response_class=ORJSONResponse)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_BASE_URL, "http://localhost:5173"],
+    allow_origins=[
+        _normalize_origin(FRONTEND_BASE_URL),
+        "http://localhost:5173",
+        "https://verigreen-frontend.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
