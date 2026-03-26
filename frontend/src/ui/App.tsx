@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import BatchView from './BatchView'
 import {
   chat,
@@ -979,24 +980,35 @@ export default function App() {
       }
     }
     if (stepDef?.target === 'chat') {
-      // 第六步：教學卡優先放在對話框左側；空間不足則改置於對話框上方，避免被裁切或與視窗重疊
-      const preferredLeft = tourRect.left - cardW - gap
-      if (preferredLeft >= pad) {
+      // 第六步：教學卡須完全落在 Chat 視窗左側，右緣不可超過 chat 左緣 - gap（含窄螢幕）
+      const chatLeft = tourRect.left
+      const chatTop = tourRect.top
+      const estH = 320
+      const availableW = chatLeft - pad - gap
+      const base: CSSProperties = { boxSizing: 'border-box' }
+
+      if (availableW < 220) {
+        // 無法在左側並排：整塊移到 Chat 上方，寬度用滿可用視窗
+        const w = Math.min(380, vw - pad * 2)
+        const topAbove = Math.max(pad, chatTop - estH - gap)
         return {
-          top: `${clampY(tourRect.top + tourRect.height / 2 - cardH / 2)}px`,
-          left: `${preferredLeft}px`,
+          ...base,
+          top: `${topAbove}px`,
+          left: `${pad}px`,
+          width: `${w}px`,
+          maxWidth: `calc(100vw - ${pad * 2}px)`,
         }
       }
-      const aboveTop = tourRect.top - cardH - gap
-      if (aboveTop >= pad) {
-        return {
-          top: `${aboveTop}px`,
-          left: `${clampX(Math.min(tourRect.left, vw - cardW - pad))}px`,
-        }
-      }
+
+      const maxCardW = Math.min(380, availableW)
+      let topPx = chatTop + tourRect.height / 2 - estH / 2
+      topPx = Math.max(pad, Math.min(vh - estH - pad, topPx))
       return {
-        top: `${pad}px`,
+        ...base,
+        top: `${topPx}px`,
         left: `${pad}px`,
+        width: `${maxCardW}px`,
+        maxWidth: `${maxCardW}px`,
       }
     }
 
