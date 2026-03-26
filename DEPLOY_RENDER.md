@@ -21,6 +21,8 @@
 - `FRONTEND_BASE_URL=https://<your-frontend>.onrender.com`
 - `SESSION_SECRET=<strong-random-string>`
 - `SESSION_COOKIE_SECURE=true`
+- `GEMINI_API_KEY=<Google AI Studio API Key>`（**必填**，分析與 Chatbot 皆用 `gemini-2.5-flash`；未設定時 LLM 相關功能會失敗）
+- （選用）`ESG_CSR_INSECURE_SSL=true`：僅當「自動抓報告」下載仍出現 SSL 憑證錯誤時再開，有安全權衡
 
 ### Frontend
 - `VITE_API_BASE=https://<your-backend>.onrender.com`
