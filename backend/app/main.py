@@ -254,6 +254,7 @@ app.add_middleware(
         "http://localhost:5173",
         "https://verigreen-frontend.onrender.com",
     ],
+    allow_origin_regex=r"^https://verigreen-frontend(?:-[a-z0-9-]+)?\.onrender\.com$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
