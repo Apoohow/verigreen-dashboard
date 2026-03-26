@@ -1,0 +1,54 @@
+:root {
+  color-scheme: light;
+  --bg: #eef2f6;
+  --surface: #ffffff;
+  --surface2: #f7f9fc;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+
+  --brand: #1aa39a;
+  --brandDark: #0b7f77;
+  --brandSoft: rgba(26, 163, 154, 0.12);
+
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --ok: #22c55e;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden; /* 整體畫面固定在一個螢幕高，由內部欄位滾動 */
+}
+
+a { color: inherit; }
+button, input, select { font: inherit; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  font-size: 12px;
+  color: var(--muted);
+}
+

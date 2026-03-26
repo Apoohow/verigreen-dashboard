@@ -1,0 +1,45 @@
+{
+  "run_id": "48a58f8591c7",
+  "companies": [
+    "2330"
+  ],
+  "years": [
+    2022
+  ],
+  "report_types": [
+    "esg",
+    "csr"
+  ],
+  "stage": "complete",
+  "files": {
+    "raw_pdfs": {
+      "C:\\Users\\hollm\\OneDrive\\桌面\\AI專案\\data\\raw_pdfs\\csr\\2330_2022_zh.pdf": "C:\\Users\\hollm\\OneDrive\\桌面\\AI專案\\data\\raw_pdfs\\csr\\2330_2022_zh.pdf"
+    },
+    "extracted_text": {
+      "2330_2022_csr": "C:\\Users\\hollm\\OneDrive\\桌面\\AI專案\\data\\extracted_text\\2330_2022_csr.txt"
+    },
+    "analysis": {}
+  },
+  "failures": [
+    {
+      "agent": "chunk_embed",
+      "step": "2330_2022_csr",
+      "error": "Failed to import transformers.integrations.integration_utils because of the following error (look up to see its traceback):\nFailed to import transformers.modeling_tf_utils because of the following error (look up to see its traceback):\nYour currently installed version of Keras is Keras 3, but this is not yet supported in Transformers. Please install the backwards-compatible tf-keras package with `pip install tf-keras`.",
+      "context": {}
+    },
+    {
+      "agent": "csr_analysis",
+      "step": "2330_2022",
+      "error": "Failed to import transformers.integrations.integration_utils because of the following error (look up to see its traceback):\nFailed to import transformers.modeling_tf_utils because of the following error (look up to see its traceback):\nYour currently installed version of Keras is Keras 3, but this is not yet supported in Transformers. Please install the backwards-compatible tf-keras package with `pip install tf-keras`.",
+      "context": {}
+    },
+    {
+      "agent": "output",
+      "step": "generate_pdf",
+      "error": "PDF 產生失敗",
+      "context": {}
+    }
+  ],
+  "validation_passed": false,
+  "output_path": null
+}
