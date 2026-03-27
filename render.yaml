@@ -20,8 +20,9 @@ services:
         value: "true"
       - key: GEMINI_API_KEY
         sync: false
+      # TWSE ESG+/MOPS 在 Linux/OpenSSL 3 上常出現憑證鏈（如缺少 SKI）導致 verify 失敗；自動抓報告需關閉對該連線的 TLS 嚴格驗證
       - key: ESG_CSR_INSECURE_SSL
-        sync: false
+        value: "true"
 
   - type: web
     name: verigreen-frontend

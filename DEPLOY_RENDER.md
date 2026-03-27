@@ -22,7 +22,7 @@
 - `SESSION_SECRET=<strong-random-string>`
 - `SESSION_COOKIE_SECURE=true`
 - `GEMINI_API_KEY=<Google AI Studio API Key>`（**必填**，分析與 Chatbot 皆用 `gemini-2.5-flash`；未設定時 LLM 相關功能會失敗）
-- （選用）`ESG_CSR_INSECURE_SSL=true`：僅當「自動抓報告」下載仍出現 SSL 憑證錯誤時再開，有安全權衡
+- `ESG_CSR_INSECURE_SSL`：`render.yaml` 已預設為 `true`。**原因**：證交所 `esggenplus.twse.com.tw` 等站點在 Render（Linux / OpenSSL 3）上常觸發 `CERTIFICATE_VERIFY_FAILED`／`Missing Subject Key Identifier`；程式會依此變數對 TWSE／MOPS 下載改用 `verify=False`（僅影響該下載連線，有 MITM 權衡）。若你手動關閉後自動抓取又失敗，請改回 `true`。
 
 ### Frontend
 - `VITE_API_BASE=https://<your-backend>.onrender.com`
