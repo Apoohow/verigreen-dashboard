@@ -399,6 +399,10 @@ export default function App() {
       alert('請輸入公司代號或名稱')
       return
     }
+    if (!currentUser) {
+      alert('請先使用 Google 登入（頁面上方），再使用自動抓報告。')
+      return
+    }
     setAgentLoading(true)
     setUploading(true)
     setElapsedSec(0)

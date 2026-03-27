@@ -201,14 +201,29 @@ export async function crawlAndImport(body: {
   selected_file: string
   downloaded_count: number
 }> {
-  const r = await apiFetch(API_BASE + '/api/agent/download-import', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let r: Response
+  try {
+    r = await apiFetch(API_BASE + '/api/agent/download-import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  } catch (e: unknown) {
+    const m = e instanceof Error ? e.message : String(e)
+    if (m === 'Failed to fetch' || m.includes('NetworkError') || m.includes('Load failed')) {
+      throw new Error(
+        '無法連上後端。請確認已 Google 登入、網路正常；若仍失敗請重新整理頁面後再試。',
+      )
+    }
+    throw e
+  }
   if (!r.ok) {
-    const err = await r.json().catch(() => ({}))
-    throw new Error((err as { detail?: string }).detail ?? '自動抓取失敗')
+    const err = (await r.json().catch(() => ({}))) as { detail?: string }
+    const detail = err.detail
+    if (r.status === 401 || detail === 'Not authenticated') {
+      throw new Error('尚未登入或工作階段已過期，請先使用 Google 登入後再試。')
+    }
+    throw new Error(typeof detail === 'string' ? detail : '自動抓取失敗')
   }
   return r.json()
 }
