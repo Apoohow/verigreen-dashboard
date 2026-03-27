@@ -556,9 +556,9 @@ export default function App() {
     setEvidence([])
     setActiveDim(null)
 
-    // 最長輪詢約 2 分鐘；僅對「取得狀態」網路失敗重試，後端 error: 狀態則直接拋出
+    // 持續輪詢直到 analyzed（無時間／次數上限，大型 PDF 可能需很久）；網路失敗重試，後端 error: 則拋出
     let netErr = 0
-    for (let i = 0; i < 120; i++) {
+    for (;;) {
       let st: { status: string }
       try {
         st = await fetchReportStatus(id)
@@ -858,7 +858,12 @@ export default function App() {
     if (target === 'company') return companyPanelRef.current
     if (target === 'risk') return riskPanelRef.current
     if (target === 'evidence') return evidencePanelRef.current
-    return chatPanelRef.current || chatFabRef.current
+    if (target === 'chat') {
+      // Step 6：必須以「展開後的對話框」為錨點；若尚未開啟而量到 FAB，教學卡會誤以為錨點在右下角而與大視窗重疊
+      if (chatOpen && chatPanelRef.current) return chatPanelRef.current
+      return chatFabRef.current
+    }
+    return null
   }
 
   function isTourTarget(target: TutorialTarget): boolean {
@@ -963,14 +968,24 @@ export default function App() {
       const el = getTargetEl(tutorialSteps[tutorialStep].target)
       setTourRect(el ? el.getBoundingClientRect() : null)
     }
-    const id = window.requestAnimationFrame(updateRect)
+    // Step 6：setChatOpen(true) 與掛載對話框晚一拍，需等 chatOpen 變更後再量；雙層 rAF 確保版面完成
+    const isChatStep = tutorialSteps[tutorialStep]?.target === 'chat'
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(updateRect)
+    })
+    let t: ReturnType<typeof setTimeout> | undefined
+    if (isChatStep && chatOpen) {
+      t = window.setTimeout(updateRect, 50)
+    }
     window.addEventListener('resize', updateRect)
     return () => {
       window.cancelAnimationFrame(id)
+      if (t) window.clearTimeout(t)
       window.removeEventListener('resize', updateRect)
     }
+    // chatOpen：Step 6 開啟對話框後需重新量測完整 chatFloatWrap，否則會誤用 FAB 範圍
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showTutorial, tutorialStep, currentPage])
+  }, [showTutorial, tutorialStep, currentPage, chatOpen])
 
   useEffect(() => {
     if (!showTutorial || currentPage !== 'dashboard') return
@@ -1579,7 +1594,9 @@ export default function App() {
                     <div className={styles.uploadProgressBar}>
                       <div
                         className={styles.uploadProgressFill}
-                        style={{ width: `${Math.min(99, (elapsedSec / 180) * 100)}%` }}
+                        style={{
+                          width: `${Math.min(95, 95 * (1 - Math.exp(-elapsedSec / 200)))}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -1607,12 +1624,14 @@ export default function App() {
                 <div className={styles.uploadSpinner} />
                 <div className={styles.uploadProgressText}>
                   <div className={styles.uploadHeadline}>{reportId ? '後端分析中…' : '上傳檔案中…'}</div>
-                  <div className={styles.muted}>已花費 {elapsedSec} 秒（預估 30–120 秒）</div>
+                  <div className={styles.muted}>已花費 {elapsedSec} 秒（大型檔案可能需較久，請勿關閉頁面）</div>
                 </div>
                 <div className={styles.uploadProgressBar}>
                   <div
                     className={styles.uploadProgressFill}
-                    style={{ width: `${Math.min(99, (elapsedSec / 90) * 100)}%` }}
+                    style={{
+                      width: `${Math.min(95, 95 * (1 - Math.exp(-elapsedSec / 200)))}%`,
+                    }}
                   />
                 </div>
               </div>
