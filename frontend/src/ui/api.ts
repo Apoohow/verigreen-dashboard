@@ -85,7 +85,16 @@ export async function fetchCompanies(query?: string): Promise<CompaniesResponse>
 
 export async function uploadReport(formData: FormData): Promise<{ report_id: string; status: string }> {
   const r = await apiFetch(API_BASE + '/api/reports/upload', { method: 'POST', body: formData })
-  if (!r.ok) throw new Error('上傳失敗')
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({})) as { detail?: string | { msg?: string }[] }
+    let msg = `上傳失敗（HTTP ${r.status}）`
+    if (typeof err.detail === 'string') msg = err.detail
+    else if (Array.isArray(err.detail)) {
+      const parts = err.detail.map((d: { msg?: string }) => d?.msg ?? '').filter(Boolean)
+      if (parts.length) msg = parts.join('；')
+    }
+    throw new Error(msg)
+  }
   return r.json()
 }
 

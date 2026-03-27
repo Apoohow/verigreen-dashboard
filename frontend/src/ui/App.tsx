@@ -372,6 +372,7 @@ export default function App() {
     setDbSelected(null)
     setUploading(true)
     setElapsedSec(0)
+    setReportStatus('匯入請求中…')
     setUploadTab('upload')
     timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000)
     try {
@@ -382,7 +383,9 @@ export default function App() {
       await pollUntilAnalyzed(res.report_id)
       await reloadCompanies()
     } catch (e: unknown) {
-      alert((e as Error).message)
+      const msg = (e as Error).message
+      alert(msg)
+      setReportStatus(`匯入失敗：${msg}`)
     } finally {
       if (timerRef.current) clearInterval(timerRef.current)
       setUploading(false)
@@ -399,6 +402,7 @@ export default function App() {
     setAgentLoading(true)
     setUploading(true)
     setElapsedSec(0)
+    setReportStatus('自動抓取報告中…')
     timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000)
     try {
       const y = Number(agentYear)
@@ -413,7 +417,9 @@ export default function App() {
       await pollUntilAnalyzed(res.report_id)
       await loadCompanies()
     } catch (e: unknown) {
-      alert((e as Error).message)
+      const msg = (e as Error).message
+      alert(msg)
+      setReportStatus(`抓取失敗：${msg}`)
     } finally {
       if (timerRef.current) clearInterval(timerRef.current)
       setUploading(false)
@@ -545,15 +551,33 @@ export default function App() {
   }, [authLoading, currentUser, currentPage])
 
   async function pollUntilAnalyzed(id: string) {
-    setReportStatus('處理中…')
+    setReportStatus('後端分析中…')
     setAnalysis(null)
     setEvidence([])
     setActiveDim(null)
 
-    // 最長輪詢約 2 分鐘，避免大型 PDF 尚未處理完就停止
+    // 最長輪詢約 2 分鐘；僅對「取得狀態」網路失敗重試，後端 error: 狀態則直接拋出
+    let netErr = 0
     for (let i = 0; i < 120; i++) {
-      const st = await fetchReportStatus(id)
+      let st: { status: string }
+      try {
+        st = await fetchReportStatus(id)
+      } catch {
+        netErr += 1
+        setReportStatus(
+          netErr >= 8 ? '無法連線取得狀態，請重新整理或檢查登入' : '後端分析中…（讀取狀態短暫失敗，重試中）',
+        )
+        if (netErr >= 12) {
+          throw new Error('無法取得報告狀態，請檢查網路或登入是否有效')
+        }
+        await new Promise((r) => setTimeout(r, 1000))
+        continue
+      }
+      netErr = 0
       setReportStatus(st.status)
+      if (typeof st.status === 'string' && st.status.startsWith('error:')) {
+        throw new Error(st.status)
+      }
       if (st.status === 'analyzed') break
       await new Promise((r) => setTimeout(r, 1000))
     }
@@ -564,11 +588,13 @@ export default function App() {
         setAnalysis(a)
         const ev = await fetchEvidence(id)
         setEvidence(ev.items)
+        setReportStatus('analyzed')
         return
       } catch {
         await new Promise((r) => setTimeout(r, 1000))
       }
     }
+    setReportStatus('分析逾時或尚未完成，請重新整理頁面後再試')
   }
 
   const overall = analysis?.overall_score ?? null
@@ -648,6 +674,7 @@ export default function App() {
     if (!selectedFile) return
     setUploading(true)
     setElapsedSec(0)
+    setReportStatus('上傳檔案中…')
     timerRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000)
     try {
       const file = selectedFile
@@ -671,6 +698,10 @@ export default function App() {
       setSelectedFile(null)
       await pollUntilAnalyzed(res.report_id)
       await loadCompanies()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setReportStatus(`失敗：${msg}`)
+      alert(`上傳或分析流程失敗：${msg}`)
     } finally {
       if (timerRef.current) clearInterval(timerRef.current)
       setUploading(false)
@@ -1575,7 +1606,7 @@ export default function App() {
               <div className={styles.uploadProgress}>
                 <div className={styles.uploadSpinner} />
                 <div className={styles.uploadProgressText}>
-                  <div className={styles.uploadHeadline}>分析中…</div>
+                  <div className={styles.uploadHeadline}>{reportId ? '後端分析中…' : '上傳檔案中…'}</div>
                   <div className={styles.muted}>已花費 {elapsedSec} 秒（預估 30–120 秒）</div>
                 </div>
                 <div className={styles.uploadProgressBar}>
