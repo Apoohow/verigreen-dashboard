@@ -8,6 +8,7 @@ Unified entry point for the agentic ESG/CSR report download pipeline.
 
 import argparse
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from esg_csr_agent.report_utils import ROOT
@@ -30,32 +31,53 @@ def run(
     }
     """
     results: dict = {}
+    esg_year = year if year is not None else 2024
+    csr_year = year if year is not None else 2020
+    want_ids = (
+        {str(c).strip().zfill(4) for c in company_codes if str(c).strip()}
+        if company_codes
+        else None
+    )
 
-    if report_type in ("esg", "both"):
+    def run_esg() -> dict:
         from esg_csr_agent import download_esg_pdfs as esg_mod
-        esg_year = year if year is not None else 2024
+
         print(f"\n{'='*60}")
         print(f"ESG 報告書下載  年度={esg_year}  公司代號={company_codes or '全部'}")
         print(f"{'='*60}")
-        rows = esg_mod._fetch_rows_from_page(year=esg_year)
-        if company_codes:
-            rows = [r for r in rows if r.get("company_id") in company_codes]
+        rows = esg_mod._fetch_rows_from_page(year=esg_year, company_codes=company_codes)
+        if want_ids:
+            rows = [r for r in rows if r.get("company_id") in want_ids]
         downloaded, failed = _run_downloads(rows, esg_mod.download_one_with_retry, jobs, fallback_url)
-        results["esg"] = {"downloaded": downloaded, "failed": failed}
-        _write_failed_csv(failed, "esg", esg_year)
+        return {"downloaded": downloaded, "failed": failed}
 
-    if report_type in ("csr", "both"):
+    def run_csr() -> dict:
         from esg_csr_agent import download_csr_pdfs as csr_mod
-        csr_year = year if year is not None else 2020
+
         print(f"\n{'='*60}")
         print(f"CSR 報告書下載  年度={csr_year}  公司代號={company_codes or '全部'}")
         print(f"{'='*60}")
-        rows = csr_mod._fetch_rows_from_page(year=csr_year)
-        if company_codes:
-            rows = [r for r in rows if r.get("company_id") in company_codes]
+        rows = csr_mod._fetch_rows_from_page(year=csr_year, company_codes=company_codes)
+        if want_ids:
+            rows = [r for r in rows if r.get("company_id") in want_ids]
         downloaded, failed = _run_downloads(rows, csr_mod.download_one_with_retry, jobs, fallback_url)
-        results["csr"] = {"downloaded": downloaded, "failed": failed}
-        _write_failed_csv(failed, "csr", csr_year)
+        return {"downloaded": downloaded, "failed": failed}
+
+    if report_type == "both":
+        print("\n[INFO] ESG 與 CSR 並行下載（比先後執行更快）。")
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f_esg = ex.submit(run_esg)
+            f_csr = ex.submit(run_csr)
+            results["esg"] = f_esg.result()
+            results["csr"] = f_csr.result()
+        _write_failed_csv(results["esg"]["failed"], "esg", esg_year)
+        _write_failed_csv(results["csr"]["failed"], "csr", csr_year)
+    elif report_type == "esg":
+        results["esg"] = run_esg()
+        _write_failed_csv(results["esg"]["failed"], "esg", esg_year)
+    elif report_type == "csr":
+        results["csr"] = run_csr()
+        _write_failed_csv(results["csr"]["failed"], "csr", csr_year)
 
     return results
 

@@ -56,7 +56,13 @@ def _ce_to_roc(ce_year: int) -> str:
 
 # ── API / HTML fetching ────────────────────────────────────────────────────────
 
-def _fetch_html_for_year_and_type(year_roc: str, typek: str, timeout: int = 60) -> str | None:
+def _fetch_html_for_year_and_type(
+    year_roc: str,
+    typek: str,
+    timeout: int = 60,
+    co_id: str = "",
+) -> str | None:
+    """co_id 有值時（單一公司代號）可縮小 MOPS 回傳表格，減少下載與解析時間。"""
     payload = {
         "apiName": "ajax_t100sb11",
         "parameters": {
@@ -65,7 +71,7 @@ def _fetch_html_for_year_and_type(year_roc: str, typek: str, timeout: int = 60) 
             "firstin": True,
             "TYPEK": typek,
             "year": year_roc,
-            "co_id": "",
+            "co_id": (co_id or "").strip(),
             "skind": "",
         },
     }
@@ -179,12 +185,15 @@ def _parse_html_rows(html: str, year_ce: int) -> list[dict]:
     return rows
 
 
-def _fetch_rows_from_page(year: int = 2020) -> list[dict]:
+def _fetch_rows_from_page(year: int = 2020, company_codes: list[str] | None = None) -> list[dict]:
     year_roc = _ce_to_roc(year)
+    co_id = ""
+    if company_codes and len(company_codes) == 1:
+        co_id = str(company_codes[0]).strip().zfill(4)
     all_rows: list[dict] = []
     for typek in MARKET_TYPES:
         print(f"  [MOPS] 取得 {year} 年度 {typek} 清單 (ROC {year_roc})…")
-        html = _fetch_html_for_year_and_type(year_roc, typek)
+        html = _fetch_html_for_year_and_type(year_roc, typek, co_id=co_id)
         if html:
             rows = _parse_html_rows(html, year)
             print(f"    → {len(rows)} 筆")

@@ -124,30 +124,7 @@ def download_one_with_retry(row: dict, retries: int = 2, **kwargs) -> Path | Non
     return None
 
 
-def _fetch_rows_from_page(year: int = 2024) -> list[dict]:
-    payload = {
-        "marketType": 0,
-        "year": year,
-        "industryNameList": [],
-        "companyCodeList": [],
-        "industryName": "all",
-        "companyCode": "all",
-    }
-    resp = requests.post(
-        TWSE_DATA_API,
-        json=payload,
-        headers=TWSE_HEADERS,
-        timeout=60,
-        verify=get_requests_verify(),
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    if not isinstance(data, dict) or "data" not in data:
-        raise RuntimeError(f"查詢 API 回傳格式異常: {data!r}")
-    if data["data"] is None:
-        print(f"  [WARN] TWSE ESG+ 平台無 {year} 年度資料（平台僅提供 2023 年起之 ESG 報告）")
-        return []
-    raw = list(data["data"])
+def _twse_items_to_rows(raw: list, year: int) -> list[dict]:
     rows: list[dict[str, str]] = []
     for item in raw:
         code = str(item.get("code") or "").strip()
@@ -165,6 +142,78 @@ def _fetch_rows_from_page(year: int = 2024) -> list[dict]:
             rows.append({"source": "twse", "company_id": code, "company_name": name, "sector": sector, "year": str(year), "lang": "zh", "url": tw_url, "twse_download_id": tw_id})
         if en_url or en_id:
             rows.append({"source": "twse", "company_id": code, "company_name": name, "sector": sector, "year": str(year), "lang": "en", "url": en_url, "twse_download_id": en_id})
+    return rows
+
+
+def _fetch_rows_from_page(year: int = 2024, company_codes: list[str] | None = None) -> list[dict]:
+    """向 TWSE ESG+ 查詢清單。有指定公司時先請求縮小範圍（較快），失敗再退回全量。"""
+    codes_norm: list[str] | None = None
+    if company_codes:
+        codes_norm = [str(c).strip().zfill(4) for c in company_codes if str(c).strip()]
+
+    def _post(payload: dict) -> dict:
+        resp = requests.post(
+            TWSE_DATA_API,
+            json=payload,
+            headers=TWSE_HEADERS,
+            timeout=60,
+            verify=get_requests_verify(),
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    payload: dict = {
+        "marketType": 0,
+        "year": year,
+        "industryNameList": [],
+        "companyCodeList": codes_norm if codes_norm else [],
+        "industryName": "all",
+        "companyCode": "specific" if codes_norm else "all",
+    }
+    try:
+        data = _post(payload)
+    except Exception as e:
+        if codes_norm:
+            print(f"  [WARN] TWSE 篩選查詢失敗（{e!s}），改為全量清單…")
+            data = _post(
+                {
+                    "marketType": 0,
+                    "year": year,
+                    "industryNameList": [],
+                    "companyCodeList": [],
+                    "industryName": "all",
+                    "companyCode": "all",
+                }
+            )
+        else:
+            raise
+    if not isinstance(data, dict) or "data" not in data:
+        raise RuntimeError(f"查詢 API 回傳格式異常: {data!r}")
+    if data["data"] is None:
+        print(f"  [WARN] TWSE ESG+ 平台無 {year} 年度資料（平台僅提供 2023 年起之 ESG 報告）")
+        return []
+
+    raw = list(data["data"])
+    if not raw and codes_norm:
+        print("  [INFO] TWSE 篩選查詢無資料，改為全量清單後本地篩選…")
+        data = _post(
+            {
+                "marketType": 0,
+                "year": year,
+                "industryNameList": [],
+                "companyCodeList": [],
+                "industryName": "all",
+                "companyCode": "all",
+            }
+        )
+        if not isinstance(data, dict) or data.get("data") is None:
+            return []
+        raw = list(data["data"])
+
+    rows = _twse_items_to_rows(raw, year)
+    if codes_norm:
+        want = set(codes_norm)
+        rows = [r for r in rows if r.get("company_id") in want]
     return rows
 
 
