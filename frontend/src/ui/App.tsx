@@ -980,14 +980,14 @@ export default function App() {
       }
     }
     if (stepDef?.target === 'chat') {
-      // 第六步：教學卡須完全落在 Chat 視窗左側，右緣不可超過 chat 左緣 - gap（含窄螢幕）
+      // 第六步：教學卡緊貼在 Chat 視窗左側（右緣 = chat 左緣 − gap），勿固定在螢幕左緣造成「離 Chat 很遠」
       const chatLeft = tourRect.left
       const chatTop = tourRect.top
       const estH = 320
-      const availableW = chatLeft - pad - gap
+      const slotW = chatLeft - pad - gap // pad～chat 左緣之間可放教學卡的寬度
       const base: CSSProperties = { boxSizing: 'border-box' }
 
-      if (availableW < 220) {
+      if (slotW < 220) {
         // 無法在左側並排：整塊移到 Chat 上方，寬度用滿可用視窗
         const w = Math.min(380, vw - pad * 2)
         const topAbove = Math.max(pad, chatTop - estH - gap)
@@ -1000,15 +1000,16 @@ export default function App() {
         }
       }
 
-      const maxCardW = Math.min(380, availableW)
+      const cardW = Math.min(380, slotW)
+      const leftPx = chatLeft - gap - cardW // 右緣對齊 chat 左側，中間只留 gap
       let topPx = chatTop + tourRect.height / 2 - estH / 2
       topPx = Math.max(pad, Math.min(vh - estH - pad, topPx))
       return {
         ...base,
         top: `${topPx}px`,
-        left: `${pad}px`,
-        width: `${maxCardW}px`,
-        maxWidth: `${maxCardW}px`,
+        left: `${Math.max(pad, leftPx)}px`,
+        width: `${cardW}px`,
+        maxWidth: `${cardW}px`,
       }
     }
 
