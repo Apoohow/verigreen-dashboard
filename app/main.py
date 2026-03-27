@@ -1421,7 +1421,7 @@ def _agent_download_and_analyze_job(
             report_type=report_type,
             year=year,
             company_codes=[code],
-            jobs=2,
+            jobs=8,
             fallback_url=False,
         )
         downloaded_paths: list[str] = []
