@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 import httpx
 import orjson
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse, RedirectResponse
 from sqlalchemy import func
@@ -23,7 +24,7 @@ from .analyze import score_report
 from .db import DATA_DIR, SessionLocal, init_db
 from .ingest import chunk_pages, extract_pages
 from .llm_analysis import run_chat_on_chunks, run_greenwashing_detector_from_chunks
-from .models import Analysis, AuthSession, Chunk, Company, EvidenceItem, OAuthState, Report, ReportPage, User
+from .models import Analysis, AuthHandoff, AuthSession, Chunk, Company, EvidenceItem, OAuthState, Report, ReportPage, User
 
 # ── 環境設定（支援從專案根目錄 .env 載入）─────────────────────────────────
 def _load_env_file() -> None:
@@ -305,8 +306,15 @@ def _serialize_user(u: User) -> dict:
     }
 
 
+def _session_token_from_request(request: Request) -> str:
+    auth = (request.headers.get("authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return (request.cookies.get(SESSION_COOKIE_NAME) or "").strip()
+
+
 def _get_current_user_from_request(request: Request, db: Session) -> User | None:
-    token = (request.cookies.get(SESSION_COOKIE_NAME) or "").strip()
+    token = _session_token_from_request(request)
     if not token:
         return None
     sess = (
@@ -441,6 +449,7 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
     if not google_sub or not email:
         raise HTTPException(status_code=400, detail="Invalid Google userinfo")
 
+    handoff_token: str | None = None
     db = _db()
     try:
         user = db.query(User).filter(User.google_sub == google_sub).first()
@@ -475,10 +484,21 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
         db.add(sess)
         db.commit()
         session_token = sess.session_token
+
+        db.query(AuthHandoff).filter(AuthHandoff.expires_at < datetime.utcnow()).delete()
+        handoff_token = secrets.token_urlsafe(32)
+        db.add(
+            AuthHandoff(
+                handoff_token=handoff_token,
+                session_token=session_token,
+                expires_at=datetime.utcnow() + timedelta(minutes=5),
+            )
+        )
+        db.commit()
     finally:
         db.close()
 
-    redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/?oauth=1"
+    redirect_url = FRONTEND_BASE_URL.rstrip("/") + f"/?oauth=1&handoff={handoff_token}"
     resp = RedirectResponse(url=redirect_url, status_code=302)
     resp.delete_cookie(
         OAUTH_STATE_COOKIE_NAME,
@@ -510,9 +530,53 @@ def auth_me(request: Request):
         db.close()
 
 
+class ExchangeHandoffBody(BaseModel):
+    handoff: str
+
+
+@app.post("/api/auth/exchange-handoff")
+def auth_exchange_handoff(body: ExchangeHandoffBody):
+    """手機 Safari 等無法帶跨站 Cookie 時，用網址 ?handoff= 一次性換成 Bearer session_token。"""
+    db = _db()
+    try:
+        now = datetime.utcnow()
+        row = (
+            db.query(AuthHandoff)
+            .filter(
+                AuthHandoff.handoff_token == body.handoff.strip(),
+                AuthHandoff.expires_at > now,
+            )
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=400, detail="Invalid or expired handoff")
+        st = row.session_token
+        sess = (
+            db.query(AuthSession)
+            .filter(
+                AuthSession.session_token == st,
+                AuthSession.revoked_at.is_(None),
+                AuthSession.expires_at > _now_utc(),
+            )
+            .first()
+        )
+        if not sess:
+            db.delete(row)
+            db.commit()
+            raise HTTPException(status_code=400, detail="Session invalid")
+        db.delete(row)
+        db.commit()
+        user = db.query(User).filter(User.user_id == sess.user_id).first()
+        if not user:
+            raise HTTPException(status_code=400, detail="User missing")
+        return {"user": _serialize_user(user), "session_token": st}
+    finally:
+        db.close()
+
+
 @app.post("/api/auth/logout")
 def auth_logout(request: Request, response: Response):
-    token = (request.cookies.get(SESSION_COOKIE_NAME) or "").strip()
+    token = _session_token_from_request(request)
     if token:
         db = _db()
         try:

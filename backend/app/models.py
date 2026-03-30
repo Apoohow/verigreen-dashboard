@@ -63,6 +63,16 @@ class OAuthState(Base):
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
 
 
+class AuthHandoff(Base):
+    """登入完成後一次性兌換 session_token（給無法使用跨站 Cookie 的手機瀏覽器）。"""
+
+    __tablename__ = "auth_handoffs"
+
+    handoff_token: Mapped[str] = mapped_column(String, primary_key=True)
+    session_token: Mapped[str] = mapped_column(String, index=True)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
+
+
 class Report(Base):
     __tablename__ = "reports"
 

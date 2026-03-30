@@ -1,7 +1,32 @@
 export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
+/** 與 HttpOnly Cookie 並行：手機無法帶跨站 Cookie 時改存此 token，以 Authorization Bearer 呼叫 API。 */
+const SESSION_TOKEN_KEY = 'vg_session_token'
+
+export function getStoredSessionToken(): string | null {
+  try {
+    return localStorage.getItem(SESSION_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setStoredSessionToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(SESSION_TOKEN_KEY, token)
+    else localStorage.removeItem(SESSION_TOKEN_KEY)
+  } catch {
+    /* 無痕／拒絕存取 */
+  }
+}
+
 async function apiFetch(input: string | URL, init?: RequestInit) {
-  return fetch(input, { credentials: 'include', ...(init ?? {}) })
+  const headers = new Headers(init?.headers ?? undefined)
+  const t = getStoredSessionToken()
+  if (t && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${t}`)
+  }
+  return fetch(input, { credentials: 'include', ...(init ?? {}), headers })
 }
 
 export type AuthMe = {
@@ -15,6 +40,32 @@ export function startGoogleLogin() {
   window.location.href = API_BASE + '/api/auth/google/start'
 }
 
+/** Google 回跳後網址會帶 ?handoff=，兌換成可存在手機上的 session token（不依賴跨站 Cookie）。 */
+export async function exchangeOAuthHandoffFromUrl(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  const params = new URLSearchParams(window.location.search)
+  const handoff = params.get('handoff')
+  if (!handoff) return false
+  const r = await fetch(API_BASE + '/api/auth/exchange-handoff', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ handoff }),
+  })
+  if (!r.ok) return false
+  const data = (await r.json()) as { session_token?: string }
+  if (data.session_token) setStoredSessionToken(data.session_token)
+  params.delete('handoff')
+  params.delete('oauth')
+  const q = params.toString()
+  window.history.replaceState(
+    {},
+    '',
+    window.location.pathname + (q ? `?${q}` : '') + window.location.hash,
+  )
+  return true
+}
+
 export async function fetchMe(): Promise<AuthMe | null> {
   const r = await apiFetch(API_BASE + '/api/auth/me', { cache: 'no-store' })
   if (r.status === 401) return null
@@ -22,7 +73,7 @@ export async function fetchMe(): Promise<AuthMe | null> {
   return r.json()
 }
 
-/** OAuth 回跳後跨站 Cookie 在手機 Safari 等環境可能延遲生效，需重試；網址含 ?oauth=1 時多試幾次。 */
+/** OAuth 回跳後跨站 Cookie 可能延遲生效時重試；網址含 ?oauth=1 時多試幾次。 */
 export async function fetchSessionWithRetries(): Promise<AuthMe | null> {
   const oauth =
     typeof window !== 'undefined' &&
@@ -35,6 +86,7 @@ export async function fetchSessionWithRetries(): Promise<AuthMe | null> {
         if (oauth && typeof window !== 'undefined') {
           const loc = new URL(window.location.href)
           loc.searchParams.delete('oauth')
+          loc.searchParams.delete('handoff')
           const q = loc.searchParams.toString()
           window.history.replaceState({}, '', loc.pathname + (q ? `?${q}` : '') + loc.hash)
         }
@@ -52,6 +104,7 @@ export async function fetchSessionWithRetries(): Promise<AuthMe | null> {
 
 export async function logout(): Promise<void> {
   const r = await apiFetch(API_BASE + '/api/auth/logout', { method: 'POST' })
+  setStoredSessionToken(null)
   if (!r.ok) throw new Error('登出失敗')
 }
 

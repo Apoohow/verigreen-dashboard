@@ -10,6 +10,7 @@ import {
   fetchCompanies,
   fetchCompanyReports,
   fetchEvidence,
+  exchangeOAuthHandoffFromUrl,
   fetchSessionWithRetries,
   fetchPage,
   fetchReportStatus,
@@ -450,10 +451,18 @@ export default function App() {
 
   useEffect(() => {
     let alive = true
-    void fetchSessionWithRetries()
-      .then((u) => { if (alive) setCurrentUser(u) })
-      .catch(() => { if (alive) setCurrentUser(null) })
-      .finally(() => { if (alive) setAuthLoading(false) })
+    async function bootAuth() {
+      try {
+        await exchangeOAuthHandoffFromUrl()
+      } catch {
+        /* 兌換失敗仍嘗試 Cookie／Bearer */
+      }
+      void fetchSessionWithRetries()
+        .then((u) => { if (alive) setCurrentUser(u) })
+        .catch(() => { if (alive) setCurrentUser(null) })
+        .finally(() => { if (alive) setAuthLoading(false) })
+    }
+    void bootAuth()
     return () => { alive = false }
   }, [])
 
