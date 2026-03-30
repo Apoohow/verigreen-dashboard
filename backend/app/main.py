@@ -377,13 +377,15 @@ def auth_google_start():
     }
     url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
     resp = RedirectResponse(url=url, status_code=302)
+    # 須與 Session Cookie 一致：手機從 Google 導回 callback 時若用 Lax，部分瀏覽器不會帶上 state → Invalid oauth state
     resp.set_cookie(
         key=OAUTH_STATE_COOKIE_NAME,
         value=state,
         max_age=600,
         httponly=True,
-        samesite="lax",
+        samesite=SESSION_COOKIE_SAMESITE,
         secure=SESSION_COOKIE_SECURE,
+        path="/",
     )
     return resp
 
@@ -469,7 +471,12 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
 
     redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/?oauth=1"
     resp = RedirectResponse(url=redirect_url, status_code=302)
-    resp.delete_cookie(OAUTH_STATE_COOKIE_NAME, path="/")
+    resp.delete_cookie(
+        OAUTH_STATE_COOKIE_NAME,
+        path="/",
+        secure=SESSION_COOKIE_SECURE,
+        samesite=SESSION_COOKIE_SAMESITE,
+    )
     resp.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_token,

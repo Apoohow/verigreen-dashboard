@@ -54,7 +54,7 @@ SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").strip().lowe
 SESSION_COOKIE_NAME = "vg_session"
 OAUTH_STATE_COOKIE_NAME = "vg_oauth_state"
 SESSION_TTL_DAYS = 7
-# 前後端不同網域時 fetch 屬 cross-site，須 SameSite=None + Secure，否則手機／部分瀏覽器不會帶 Cookie
+# 前後端不同網域時 fetch 屬 cross-site；OAuth state 與 session 皆須 SameSite=None + Secure（HTTPS）
 SESSION_COOKIE_SAMESITE: str = "none" if SESSION_COOKIE_SECURE else "lax"
 
 # ── 維度正規化（模組層級，各處共用）────────────────────────────────────
@@ -368,8 +368,9 @@ def auth_google_start():
         value=state,
         max_age=600,
         httponly=True,
-        samesite="lax",
+        samesite=SESSION_COOKIE_SAMESITE,
         secure=SESSION_COOKIE_SECURE,
+        path="/",
     )
     return resp
 
@@ -455,7 +456,12 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
 
     redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/?oauth=1"
     resp = RedirectResponse(url=redirect_url, status_code=302)
-    resp.delete_cookie(OAUTH_STATE_COOKIE_NAME, path="/")
+    resp.delete_cookie(
+        OAUTH_STATE_COOKIE_NAME,
+        path="/",
+        secure=SESSION_COOKIE_SECURE,
+        samesite=SESSION_COOKIE_SAMESITE,
+    )
     resp.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_token,
