@@ -54,6 +54,15 @@ class AuthSession(Base):
     user: Mapped["User"] = relationship(back_populates="sessions")
 
 
+class OAuthState(Base):
+    """Google OAuth CSRF state（Safari／手機常不帶跨站 Cookie，改存 DB 驗證）。"""
+
+    __tablename__ = "oauth_states"
+
+    state: Mapped[str] = mapped_column(String, primary_key=True)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime, index=True)
+
+
 class Report(Base):
     __tablename__ = "reports"
 

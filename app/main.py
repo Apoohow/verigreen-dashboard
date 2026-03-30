@@ -23,7 +23,7 @@ from .analyze import score_report
 from .db import DATA_DIR, SessionLocal, init_db
 from .ingest import chunk_pages, extract_pages
 from .llm_analysis import run_chat_on_chunks, run_greenwashing_detector_from_chunks
-from .models import Analysis, AuthSession, Chunk, Company, EvidenceItem, Report, ReportPage, User
+from .models import Analysis, AuthSession, Chunk, Company, EvidenceItem, OAuthState, Report, ReportPage, User
 
 # ── 環境設定（支援從專案根目錄 .env 載入）─────────────────────────────────
 def _load_env_file() -> None:
@@ -352,6 +352,14 @@ async def _auth_guard(request: Request, call_next):
 def auth_google_start():
     _require_oauth_env()
     state = secrets.token_urlsafe(24)
+    now = datetime.utcnow()
+    db = _db()
+    try:
+        db.query(OAuthState).filter(OAuthState.expires_at < now).delete()
+        db.add(OAuthState(state=state, expires_at=now + timedelta(minutes=10)))
+        db.commit()
+    finally:
+        db.close()
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": GOOGLE_REDIRECT_URI,
@@ -362,17 +370,7 @@ def auth_google_start():
         "state": state,
     }
     url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
-    resp = RedirectResponse(url=url, status_code=302)
-    resp.set_cookie(
-        key=OAUTH_STATE_COOKIE_NAME,
-        value=state,
-        max_age=600,
-        httponly=True,
-        samesite=SESSION_COOKIE_SAMESITE,
-        secure=SESSION_COOKIE_SECURE,
-        path="/",
-    )
-    return resp
+    return RedirectResponse(url=url, status_code=302)
 
 
 @app.get("/api/auth/google/callback")
@@ -381,9 +379,20 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing oauth callback params")
 
-    cookie_state = (request.cookies.get(OAUTH_STATE_COOKIE_NAME) or "").strip()
-    if not cookie_state or cookie_state != state:
-        raise HTTPException(status_code=400, detail="Invalid oauth state")
+    db_chk = _db()
+    try:
+        now = datetime.utcnow()
+        row = (
+            db_chk.query(OAuthState)
+            .filter(OAuthState.state == state, OAuthState.expires_at > now)
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=400, detail="Invalid oauth state")
+        db_chk.delete(row)
+        db_chk.commit()
+    finally:
+        db_chk.close()
 
     async with httpx.AsyncClient(timeout=20) as client:
         token_resp = await client.post(
