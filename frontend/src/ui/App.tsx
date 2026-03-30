@@ -10,7 +10,7 @@ import {
   fetchCompanies,
   fetchCompanyReports,
   fetchEvidence,
-  fetchMe,
+  fetchSessionWithRetries,
   fetchPage,
   fetchReportStatus,
   fetchSourceFilters,
@@ -450,7 +450,7 @@ export default function App() {
 
   useEffect(() => {
     let alive = true
-    void fetchMe()
+    void fetchSessionWithRetries()
       .then((u) => { if (alive) setCurrentUser(u) })
       .catch(() => { if (alive) setCurrentUser(null) })
       .finally(() => { if (alive) setAuthLoading(false) })

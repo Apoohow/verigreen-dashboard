@@ -467,7 +467,7 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
     finally:
         db.close()
 
-    redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/"
+    redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/?oauth=1"
     resp = RedirectResponse(url=redirect_url, status_code=302)
     resp.delete_cookie(OAUTH_STATE_COOKIE_NAME, path="/")
     resp.set_cookie(

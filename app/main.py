@@ -54,6 +54,8 @@ SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").strip().lowe
 SESSION_COOKIE_NAME = "vg_session"
 OAUTH_STATE_COOKIE_NAME = "vg_oauth_state"
 SESSION_TTL_DAYS = 7
+# 前後端不同網域時 fetch 屬 cross-site，須 SameSite=None + Secure，否則手機／部分瀏覽器不會帶 Cookie
+SESSION_COOKIE_SAMESITE: str = "none" if SESSION_COOKIE_SECURE else "lax"
 
 # ── 維度正規化（模組層級，各處共用）────────────────────────────────────
 _DIM_NORMALIZE: dict[str, str] = {
@@ -451,7 +453,7 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
     finally:
         db.close()
 
-    redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/"
+    redirect_url = FRONTEND_BASE_URL.rstrip("/") + "/?oauth=1"
     resp = RedirectResponse(url=redirect_url, status_code=302)
     resp.delete_cookie(OAUTH_STATE_COOKIE_NAME, path="/")
     resp.set_cookie(
@@ -459,7 +461,7 @@ async def auth_google_callback(request: Request, code: str | None = None, state:
         value=session_token,
         max_age=SESSION_TTL_DAYS * 24 * 3600,
         httponly=True,
-        samesite="lax",
+        samesite=SESSION_COOKIE_SAMESITE,
         secure=SESSION_COOKIE_SECURE,
         path="/",
     )
@@ -492,7 +494,12 @@ def auth_logout(request: Request, response: Response):
         finally:
             db.close()
     response = ORJSONResponse({"status": "logged_out"})
-    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        path="/",
+        secure=SESSION_COOKIE_SECURE,
+        samesite=SESSION_COOKIE_SAMESITE,
+    )
     return response
 
 

@@ -16,10 +16,38 @@ export function startGoogleLogin() {
 }
 
 export async function fetchMe(): Promise<AuthMe | null> {
-  const r = await apiFetch(API_BASE + '/api/auth/me')
+  const r = await apiFetch(API_BASE + '/api/auth/me', { cache: 'no-store' })
   if (r.status === 401) return null
   if (!r.ok) throw new Error('取得登入狀態失敗')
   return r.json()
+}
+
+/** OAuth 回跳後跨站 Cookie 在手機 Safari 等環境可能延遲生效，需重試；網址含 ?oauth=1 時多試幾次。 */
+export async function fetchSessionWithRetries(): Promise<AuthMe | null> {
+  const oauth =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('oauth') === '1'
+  const max = oauth ? 12 : 4
+  for (let i = 0; i < max; i++) {
+    try {
+      const me = await fetchMe()
+      if (me) {
+        if (oauth && typeof window !== 'undefined') {
+          const loc = new URL(window.location.href)
+          loc.searchParams.delete('oauth')
+          const q = loc.searchParams.toString()
+          window.history.replaceState({}, '', loc.pathname + (q ? `?${q}` : '') + loc.hash)
+        }
+        return me
+      }
+    } catch {
+      /* 網路錯誤時重試 */
+    }
+    if (i < max - 1) {
+      await new Promise((r) => setTimeout(r, oauth ? 280 + i * 120 : 180 + i * 100))
+    }
+  }
+  return null
 }
 
 export async function logout(): Promise<void> {
